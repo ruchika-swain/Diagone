@@ -28,25 +28,20 @@ def generate_random_paths(elements, client, service, api_split, consumer_split, 
 
         ensure_topic_constraints(path, service, api_split, consumer_split, used_elements)
         handle_m_elements(path, service, api_split, used_elements)
+        check_three_consecutive_services(path)
         random_paths.append("-".join(path))
 
-    check_three_consecutive_services(random_paths, service, api_split)
     queue.put(random_paths)
 
-def check_three_consecutive_services(paths, service, api_split):
-    """Check and adjust paths to ensure no three consecutive elements are from the same service."""
-    for idx, path in enumerate(paths):
-        path_elements = path.split("-")
-        for i in range(len(path_elements) - 2):
-            # Check if three consecutive elements belong to the same service
-            if (path_elements[i][1] == path_elements[i+1][1] == path_elements[i+2][1]):
-                # Replace the third element in the sequence with a random element from a different service
-                new_element = get_random_element(service, api_split, "a")
-                while new_element in path_elements:
-                    new_element = get_random_element(service, api_split, "a")
-                path_elements[i+2] = new_element
-        # Reconstruct the path after adjustments
-        paths[idx] = "-".join(path_elements)
+def check_three_consecutive_services(path):
+    i = 2
+    while i < len(path):
+        if path[i].startswith("s") and (path[i][1] == path[i - 1][1] or path[i][1] == path[i - 2][1]):
+            path.pop(i)
+        else:
+            i += 1
+
+    return path
 
 def ensure_topic_constraints(path, service, api_split, consumer_split, used_elements):
     idx = 0
