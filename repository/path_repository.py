@@ -1,5 +1,8 @@
 from utils.random_utils import get_random_element
 import random
+import logging
+import threading
+from queue import Queue
 
 def generate_elements(client, service, api_split, topic, consumer_split):
     elements = [f"c{i + 1}" for i in range(client)]
@@ -8,13 +11,13 @@ def generate_elements(client, service, api_split, topic, consumer_split):
     elements += [f"s{i + 1}m{j + 1}" for i in range(service) for j in range(consumer_split[i])]
     return elements
 
-def generate_random_paths(elements, client, service, api_split, consumer_split, min_length, max_length, num_paths):
+def generate_random_paths(elements, client, service, api_split, consumer_split, min_length, max_length, num_paths, queue):
     random_paths = []
 
     for _ in range(num_paths):
         path_length = random.randint(min_length, max_length)
         path = [f"c{random.randint(1, client)}"]
-        used_elements = set(path)
+        used_elements = set(f"c{i + 1}" for i in range(client))
 
         while len(path) < path_length:
             next_element = random.choice(elements[1:])
@@ -27,7 +30,23 @@ def generate_random_paths(elements, client, service, api_split, consumer_split, 
         handle_m_elements(path, service, api_split, used_elements)
         random_paths.append("-".join(path))
 
-    return random_paths
+    check_three_consecutive_services(random_paths, service, api_split)
+    queue.put(random_paths)
+
+def check_three_consecutive_services(paths, service, api_split):
+    """Check and adjust paths to ensure no three consecutive elements are from the same service."""
+    for idx, path in enumerate(paths):
+        path_elements = path.split("-")
+        for i in range(len(path_elements) - 2):
+            # Check if three consecutive elements belong to the same service
+            if (path_elements[i][1] == path_elements[i+1][1] == path_elements[i+2][1]):
+                # Replace the third element in the sequence with a random element from a different service
+                new_element = get_random_element(service, api_split, "a")
+                while new_element in path_elements:
+                    new_element = get_random_element(service, api_split, "a")
+                path_elements[i+2] = new_element
+        # Reconstruct the path after adjustments
+        paths[idx] = "-".join(path_elements)
 
 def ensure_topic_constraints(path, service, api_split, consumer_split, used_elements):
     idx = 0
@@ -60,6 +79,60 @@ def handle_m_elements(path, service, api_split, used_elements):
                 path[idx] = replacement
                 used_elements.add(replacement)
 
+def add_missing_lengths(paths, min_length, max_length, client, service, api_split):
+    """Ensure paths of all lengths are present."""
+    unique_paths = set(paths)
+    path_lengths = {length: False for length in range(min_length, max_length + 1)}
+
+    for path in paths:
+        path_lengths[len(path.split("-"))] = True
+
+    for length, covered in path_lengths.items():
+        if not covered:
+            path = [f"c{random.randint(1, client)}"]
+            used_elements = set(f"c{i + 1}" for i in range(client))
+            for _ in range(length - 1):
+                element = get_random_element(service, api_split, "a")
+                while element in used_elements:
+                    element = get_random_element(service, api_split, "a")
+                path.append(element)
+                used_elements.add(element)
+            check_three_consecutive_services(path)
+            unique_paths.add("-".join(path))
+
+    return list(unique_paths)
+
+def generate_random_paths_multithreaded(elements, client, service, api_split, consumer_split, min_length, max_length, num_paths):
+    """Generate random paths using multithreading."""
+    logging.info("Started generating random paths with multithreading")
+    no_threads = 3
+    num_paths_per_thread= num_paths // no_threads
+    queue = Queue()
+    threads = []
+
+    # Create threads
+    for _ in range(no_threads):  # Two threads, each handling half of the paths
+        thread = threading.Thread(
+            target=generate_random_paths,
+            args=(elements, client, service, api_split, consumer_split, min_length, max_length, num_paths_per_thread, queue)
+        )
+        threads.append(thread)
+        thread.start()
+
+    # Wait for threads to complete
+    for thread in threads:
+        thread.join()
+
+    # Combine results
+    all_paths = []
+    while not queue.empty():
+        all_paths.extend(queue.get())
+
+    # Ensure all lengths are covered and remove duplicates
+    logging.info("Ensuring all lengths are covered and removing duplicates")
+    unique_paths = add_missing_lengths(all_paths, min_length, max_length, client, service, api_split)
+    return list(set(unique_paths))
+
 def generate_paths(client, service, api_split, topic, consumer_split, min_length, max_length, num_paths):
     elements = generate_elements(client, service, api_split, topic, consumer_split)
-    return generate_random_paths(elements, client, service, api_split, consumer_split, min_length, max_length, num_paths)
+    return generate_random_paths_multithreaded(elements, client, service, api_split, consumer_split, min_length, max_length, num_paths)
