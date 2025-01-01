@@ -16,7 +16,7 @@ def post_graph_paths(base_url, paths):
 
         # Process each element in the path
         for i, element in enumerate(path_elements):
-            if element.startswith("s"):  # Service and API element
+            if element.startswith("s") and  element[2]=='a':  # Service and API element
                 service = f"s{element[1]}"
                 api = f"a{element[3]}"
                 path_key = f"{path_elements[i-1]}-{service}{api}-post"
@@ -51,9 +51,25 @@ def post_graph_paths(base_url, paths):
                 }]
                 endpoint = f"{base_url}/{service}"
                 previous_path_key = path_key  # Update for the next element
+            elif element.startswith("s") and element[2]=='m':  # Topic element
+                path_key = f"{path_elements[i-2]}-{element}-topic-{path_elements[i-1]}"
+                incoming_path = previous_path_key  # Build the incoming path
+                payload = [{
+                    "pathKey": path_key,
+                    "graphPathNode": {
+                        "incomingPath": incoming_path,
+                        "graphPathElement": {
+                            "type": "KafkaConsumer",
+                            "groupId": f"s{path_elements[i-2][1]}-CG",
+                            "topicName": path_elements[i-1]
+                        }
+                    }
+                }]
+                endpoint = f"{base_url}/s{path_elements[i-2][1]}"
+                previous_path_key = path_key
             else:
                 continue
 
             print(json.dumps(payload, indent=4))
-            response = requests.post(endpoint, json=payload)
+            requests.post(endpoint, json=payload)
 

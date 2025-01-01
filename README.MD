@@ -50,3 +50,24 @@ Copy code
 ]
 }
 ```
+Curl for inserting a path manually
+```text
+curl --location 'http://127.0.0.1:5000/api/v1/insert-paths' \
+--header 'Content-Type: application/json' \
+--data '{
+    "paths": [
+        "c1-s1a1-s2a2"
+    ]
+}'
+```
+
+To insert the paths manually use the following curl:
+```text
+curl --location 'http://127.0.0.1:5000/api/v1/insert-paths' \
+--header 'Content-Type: application/json' \
+--data '{
+    "paths": [
+        "c1-s1a2-t1-s2m1"
+    ]
+}'
+```

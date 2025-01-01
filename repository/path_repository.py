@@ -28,18 +28,38 @@ def generate_random_paths(elements, client, service, api_split, consumer_split, 
 
         ensure_topic_constraints(path, service, api_split, consumer_split, used_elements)
         handle_m_elements(path, service, api_split, used_elements)
-        check_three_consecutive_services(path)
+        check_three_consecutive_services(path, service, api_split, used_elements)
         random_paths.append("-".join(path))
 
     queue.put(random_paths)
 
-def check_three_consecutive_services(path):
+def check_three_consecutive_services(path, service, api_split, used_elements):
+    """Check and adjust paths to ensure no three consecutive elements are from the same service."""
     i = 2
     while i < len(path):
-        if path[i].startswith("s") and (path[i][1] == path[i - 1][1] or path[i][1] == path[i - 2][1]):
+        if (
+                path[i].startswith("s") and path[i][2] == 'a' and
+                ((path[i - 1].startswith("s") and path[i][1] == path[i - 1][1]) or
+                 (path[i - 2].startswith("s") and path[i][1] == path[i - 2][1]))
+        ):
             path.pop(i)
+        elif (
+                path[i].startswith("s") and path[i][2] == 'm' and
+                (path[i][1] == path[i - 2][1])
+        ):
+            # Generate a new valid element for path[i-2]
+            new_element = get_random_element(service, api_split, "a")
+            while (
+                    new_element in used_elements or
+                    (path[i - 1].startswith("s") and new_element[1] == path[i - 1][1]) or
+                    (path[i].startswith("s") and new_element[1] == path[i][1])
+            ):
+                new_element = get_random_element(service, api_split, "a")
+            path[i - 2] = new_element
+            used_elements.add(new_element)
+            i = i-2
         else:
-            i += 1
+            i += 1  # Move to the next element
 
     return path
 
@@ -92,7 +112,7 @@ def add_missing_lengths(paths, min_length, max_length, client, service, api_spli
                     element = get_random_element(service, api_split, "a")
                 path.append(element)
                 used_elements.add(element)
-            check_three_consecutive_services(path)
+            check_three_consecutive_services(path, service, api_split, used_elements)
             unique_paths.add("-".join(path))
 
     return list(unique_paths)
