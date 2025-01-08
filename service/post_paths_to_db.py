@@ -65,7 +65,7 @@ def post_graph_paths(base_url, paths):
                         }
                     }
                 }]
-                endpoint = f"{base_url}/s{path_elements[i-2][1]}"
+                endpoint = f"{base_url}/s{path_elements[i][1]}"
                 previous_path_key = path_key
             else:
                 continue
