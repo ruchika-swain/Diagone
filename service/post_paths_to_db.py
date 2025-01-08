@@ -60,7 +60,7 @@ def post_graph_paths(base_url, paths):
                         "incomingPath": incoming_path,
                         "graphPathElement": {
                             "type": "KafkaConsumer",
-                            "groupId": f"s{path_elements[i-2][1]}-CG",
+                            "groupId": f"s{path_elements[i][1]}-CG",
                             "topicName": path_elements[i-1]
                         }
                     }
