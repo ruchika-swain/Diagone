@@ -67,6 +67,62 @@ def post_graph_paths(base_url, paths):
                 }]
                 endpoint = f"{base_url}/s{element[1:3]}"  # Get two digits for service number
                 previous_path_key = path_key
+
+            elif element.startswith("db"):  # SQL, Redis, MongoDB command
+                db_type_mapping = {
+                    "Sql": "SQL",
+                    "Redis": "Redis",
+                    "Mongo": "MongoDB"
+                }
+
+                db_prefix = element[2:]  # Extract type identifier (e.g., "Sql1", "Redis1", "Mongo1")
+                db_server = f"http://{element}"  # Database server identifier
+                db_type = "Unknown"  # Default type (in case of an unknown DB)
+
+                # Determine the database type dynamically
+                for key in db_type_mapping:
+                    if db_prefix.startswith(key):
+                        db_type = db_type_mapping[key]
+                        break  # Exit the loop once a match is found
+
+                path_key = f"{previous_path_key}-{db_server}-read"
+                # payload = [{
+                #     "pathKey": path_key,
+                #     "graphPathNode": {
+                #         "incomingPath": previous_path_key,
+                #         "graphPathElement": {
+                #             "type": db_type,  # Use the dynamically detected DB type
+                #             "url": db_server,
+                #             "queryType": "read"
+                #         }
+                #     }
+                # }]
+                if db_type == "SQL":
+                    payload = [{
+                        "pathKey": path_key,
+                        "graphPathNode": {
+                            "incomingPath": previous_path_key,
+                            "graphPathElement": {
+                                "type": db_type,  # SQL Type
+                                "url": db_server,
+                                "queryType": "Read"  # SQL uses `queryType`
+                            }
+                        }
+                    }]
+                else:
+                    payload = [{
+                        "pathKey": path_key,
+                        "graphPathNode": {
+                            "incomingPath": previous_path_key,
+                            "graphPathElement": {
+                                "type": db_type,
+                                "commandName": "Write",
+                                "server": db_server
+                            }
+                        }
+                    }]
+                endpoint = f"{base_url}/s{path_elements[i-1][1:3]}"
+
             else:
                 continue
 
