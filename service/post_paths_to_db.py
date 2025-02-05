@@ -34,6 +34,7 @@ def post_graph_paths(base_url, paths):
                 }]
                 endpoint = f"{base_url}/{service}"
                 previous_path_key = path_key  # Update for the next element
+
             elif element.startswith("c"):  # Client element
                 client = f"c{element[1]}"
                 service = f"s{path_elements[1][1:3]}"  # Get two digits for service number
@@ -51,6 +52,7 @@ def post_graph_paths(base_url, paths):
                 }]
                 endpoint = f"{base_url}/{service}"
                 previous_path_key = path_key  # Update for the next element
+
             elif element.startswith("s") and element[3] == 'm':  # Topic element
                 path_key = f"{path_elements[i-2]}-{element}-topic-{path_elements[i-1]}"
                 incoming_path = previous_path_key  # Build the incoming path
@@ -128,6 +130,24 @@ def post_graph_paths(base_url, paths):
                         }
                     }]
                 endpoint = f"{base_url}/s{path_elements[i-1][1:3]}"
+
+            elif element.startswith("s") and element[3] == 'p':  # Service and API element
+                service = f"s{element[1:3]}"  # Get two digits for service number
+                api = f"pb{element[4:6]}"      # Get two digits for API number
+                path_key = f"{path_elements[i-1]}-{service}{api}-grpc"
+                incoming_path = previous_path_key
+                payload = [{
+                    "pathKey": path_key,
+                    "graphPathNode": {
+                        "incomingPath": incoming_path,
+                        "graphPathElement": {
+                            "type": "GrpcService",
+                            "grpcFullMethodName": api
+                        }
+                    }
+                }]
+                endpoint = f"{base_url}/{service}"
+                previous_path_key = path_key
 
             else:
                 continue
