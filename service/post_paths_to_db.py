@@ -68,6 +68,22 @@ def post_graph_paths(base_url, paths):
                 endpoint = f"{base_url}/s{element[1:3]}"  # Get two digits for service number
                 previous_path_key = path_key
 
+            elif element.startswith("s") and element[3] == 'n':  # SQS Topic element
+                path_key = f"{path_elements[i-2]}-{element}-queue-{path_elements[i-1]}"
+                incoming_path = previous_path_key  # Build the incoming path
+                payload = [{
+                    "pathKey": path_key,
+                    "graphPathNode": {
+                        "incomingPath": incoming_path,
+                        "graphPathElement": {
+                            "type": "SQSConsumer",  # Get two digits for service number
+                            "queueName": path_elements[i-1]
+                        }
+                    }
+                }]
+                endpoint = f"{base_url}/s{element[1:3]}"  # Get two digits for service number
+                previous_path_key = path_key
+
             elif element.startswith("db"):  # SQL, Redis, MongoDB command
                 db_type_mapping = {
                     "Sql": "SQL",
@@ -86,17 +102,7 @@ def post_graph_paths(base_url, paths):
                         break  # Exit the loop once a match is found
 
                 path_key = f"{previous_path_key}-{db_server}-read"
-                # payload = [{
-                #     "pathKey": path_key,
-                #     "graphPathNode": {
-                #         "incomingPath": previous_path_key,
-                #         "graphPathElement": {
-                #             "type": db_type,  # Use the dynamically detected DB type
-                #             "url": db_server,
-                #             "queryType": "read"
-                #         }
-                #     }
-                # }]
+
                 if db_type == "SQL":
                     payload = [{
                         "pathKey": path_key,
