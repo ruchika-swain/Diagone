@@ -6,9 +6,9 @@ from queue import Queue
 
 def generate_elements(client, service, api_split, topic, consumer_split):
     elements = [f"c{i + 1}" for i in range(client)]
-    elements += [f"s{i + 1}a{j + 1}" for i in range(service) for j in range(api_split[i])]
+    elements += [f"s{str(i + 1).zfill(2)}a{str(j + 1).zfill(2)}" for i in range(service) for j in range(api_split[i])]
     elements += [f"t{i + 1}" for i in range(topic)]
-    elements += [f"s{i + 1}m{j + 1}" for i in range(service) for j in range(consumer_split[i])]
+    elements += [f"s{str(i + 1).zfill(2)}m{str(j + 1).zfill(2)}" for i in range(service) for j in range(consumer_split[i])]
     return elements
 
 def generate_random_paths(elements, client, service, api_split, consumer_split, min_length, max_length, num_paths, queue):
@@ -38,21 +38,21 @@ def check_three_consecutive_services(path, service, api_split, used_elements):
     i = 2
     while i < len(path):
         if (
-                path[i].startswith("s") and path[i][2] == 'a' and
-                ((path[i - 1].startswith("s") and path[i][1] == path[i - 1][1]) or
-                 (path[i - 2].startswith("s") and path[i][1] == path[i - 2][1]))
+                path[i].startswith("s") and path[i][3] == 'a' and
+                ((path[i - 1].startswith("s") and path[i][1:3] == path[i - 1][1:3]) or
+                 (path[i - 2].startswith("s") and path[i][1:3] == path[i - 2][1:3]))
         ):
             path.pop(i)
         elif (
-                path[i].startswith("s") and path[i][2] == 'm' and
-                (path[i][1] == path[i - 2][1])
+                path[i].startswith("s") and path[i][3] == 'm' and
+                (path[i][1:3] == path[i - 2][1:3])
         ):
             # Generate a new valid element for path[i-2]
             new_element = get_random_element(service, api_split, "a")
             while (
                     new_element in used_elements or
-                    (path[i - 1].startswith("s") and new_element[1] == path[i - 1][1]) or
-                    (path[i].startswith("s") and new_element[1] == path[i][1])
+                    (path[i - 1].startswith("s") and new_element[1:3] == path[i - 1][1:3]) or
+                    (path[i].startswith("s") and new_element[1:3] == path[i][1:3])
             ):
                 new_element = get_random_element(service, api_split, "a")
             path[i - 2] = new_element
@@ -68,14 +68,14 @@ def ensure_topic_constraints(path, service, api_split, consumer_split, used_elem
     while idx < len(path):
         element = path[idx]
         if element.startswith("t"):
-            if idx == 0 or not (path[idx - 1].startswith("s") and path[idx - 1][2] == "a"):
+            if idx == 0 or not (path[idx - 1].startswith("s") and path[idx - 1][3] == "a"):
                 preceding = get_random_element(service, api_split, "a")
                 while preceding in used_elements:
                     preceding = get_random_element(service, api_split, "a")
                 path.insert(idx, preceding)
                 used_elements.add(preceding)
                 idx += 1
-            if idx == len(path) - 1 or not (path[idx + 1].startswith("s") and path[idx + 1][2] == "m"):
+            if idx == len(path) - 1 or not (path[idx + 1].startswith("s") and path[idx + 1][3] == "m"):
                 succeeding = get_random_element(service, consumer_split, "m")
                 while succeeding in used_elements:
                     succeeding = get_random_element(service, consumer_split, "m")
@@ -85,9 +85,9 @@ def ensure_topic_constraints(path, service, api_split, consumer_split, used_elem
 
 def handle_m_elements(path, service, api_split, used_elements):
     for idx, element in enumerate(path):
-        if element.startswith("s") and element[2] == "m" and idx > 0:
+        if element.startswith("s") and element[3] == "m" and idx > 0:
             prev = path[idx - 1]
-            if prev.startswith("c") or (prev.startswith("s") and prev[2] in {"a", "m"}):
+            if prev.startswith("c") or (prev.startswith("s") and prev[3] in {"a", "m"}):
                 replacement = get_random_element(service, api_split, "a")
                 while replacement in used_elements:
                     replacement = get_random_element(service, api_split, "a")

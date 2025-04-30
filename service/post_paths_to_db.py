@@ -8,7 +8,7 @@ def post_graph_paths(base_url, paths):
 
     Args:
         base_url (str): The base URL of the external API (e.g., "http://localhost:8081/api/graph-paths").
-        paths (list): A list of paths where each path is a string (e.g., "c1-s1a1-s2a2").
+        paths (list): A list of paths where each path is a string (e.g., "c1-s01a01-s02a02").
     """
     for path in paths:
         path_elements = path.split("-")
@@ -16,9 +16,9 @@ def post_graph_paths(base_url, paths):
 
         # Process each element in the path
         for i, element in enumerate(path_elements):
-            if element.startswith("s") and  element[2]=='a':  # Service and API element
-                service = f"s{element[1]}"
-                api = f"a{element[3]}"
+            if element.startswith("s") and element[3] == 'a':  # Service and API element
+                service = f"s{element[1:3]}"  # Get two digits for service number
+                api = f"a{element[4:6]}"      # Get two digits for API number
                 path_key = f"{path_elements[i-1]}-{service}{api}-post"
                 incoming_path = previous_path_key
                 payload = [{
@@ -34,9 +34,10 @@ def post_graph_paths(base_url, paths):
                 }]
                 endpoint = f"{base_url}/{service}"
                 previous_path_key = path_key  # Update for the next element
+
             elif element.startswith("c"):  # Client element
                 client = f"c{element[1]}"
-                service = f"s{path_elements[1][1]}"
+                service = f"s{path_elements[1][1:3]}"  # Get two digits for service number
                 path_key = f"NULL-{client}-{service}-inbound"
                 payload = [{
                     "pathKey": path_key,
@@ -51,7 +52,8 @@ def post_graph_paths(base_url, paths):
                 }]
                 endpoint = f"{base_url}/{service}"
                 previous_path_key = path_key  # Update for the next element
-            elif element.startswith("s") and element[2]=='m':  # Topic element
+
+            elif element.startswith("s") and element[3] == 'm':  # Topic element
                 path_key = f"{path_elements[i-2]}-{element}-topic-{path_elements[i-1]}"
                 incoming_path = previous_path_key  # Build the incoming path
                 payload = [{
@@ -60,13 +62,93 @@ def post_graph_paths(base_url, paths):
                         "incomingPath": incoming_path,
                         "graphPathElement": {
                             "type": "KafkaConsumer",
-                            "groupId": f"s{path_elements[i][1]}-CG",
+                            "groupId": f"s{element[1:3]}-CG",  # Get two digits for service number
                             "topicName": path_elements[i-1]
                         }
                     }
                 }]
-                endpoint = f"{base_url}/s{path_elements[i][1]}"
+                endpoint = f"{base_url}/s{element[1:3]}"  # Get two digits for service number
                 previous_path_key = path_key
+
+            elif element.startswith("s") and element[3] == 'n':  # SQS Topic element
+                path_key = f"{path_elements[i-2]}-{element}-queue-{path_elements[i-1]}"
+                incoming_path = previous_path_key  # Build the incoming path
+                payload = [{
+                    "pathKey": path_key,
+                    "graphPathNode": {
+                        "incomingPath": incoming_path,
+                        "graphPathElement": {
+                            "type": "SQSConsumer",  # Get two digits for service number
+                            "queueName": path_elements[i-1]
+                        }
+                    }
+                }]
+                endpoint = f"{base_url}/s{element[1:3]}"  # Get two digits for service number
+                previous_path_key = path_key
+
+            elif element.startswith("db"):  # SQL, Redis, MongoDB command
+                db_type_mapping = {
+                    "Sql": "SQL",
+                    "Redis": "Redis",
+                    "Mongo": "MongoDB"
+                }
+
+                db_prefix = element[2:]  # Extract type identifier (e.g., "Sql1", "Redis1", "Mongo1")
+                db_server = f"http://{element}"  # Database server identifier
+                db_type = "Unknown"  # Default type (in case of an unknown DB)
+
+                # Determine the database type dynamically
+                for key in db_type_mapping:
+                    if db_prefix.startswith(key):
+                        db_type = db_type_mapping[key]
+                        break  # Exit the loop once a match is found
+
+                path_key = f"{previous_path_key}-{db_server}-read"
+
+                if db_type == "SQL":
+                    payload = [{
+                        "pathKey": path_key,
+                        "graphPathNode": {
+                            "incomingPath": previous_path_key,
+                            "graphPathElement": {
+                                "type": db_type,  # SQL Type
+                                "url": db_server,
+                                "queryType": "Read"  # SQL uses `queryType`
+                            }
+                        }
+                    }]
+                else:
+                    payload = [{
+                        "pathKey": path_key,
+                        "graphPathNode": {
+                            "incomingPath": previous_path_key,
+                            "graphPathElement": {
+                                "type": db_type,
+                                "commandName": "Write",
+                                "server": db_server
+                            }
+                        }
+                    }]
+                endpoint = f"{base_url}/s{path_elements[i-1][1:3]}"
+
+            elif element.startswith("s") and element[3] == 'p':  # Service and API element
+                service = f"s{element[1:3]}"  # Get two digits for service number
+                api = f"pb{element[4:6]}"      # Get two digits for API number
+                path_key = f"{path_elements[i-1]}-{service}{api}-grpc"
+                incoming_path = previous_path_key
+                payload = [{
+                    "pathKey": path_key,
+                    "graphPathNode": {
+                        "incomingPath": incoming_path,
+                        "graphPathElement": {
+                            "type": "GrpcService",
+                            "grpcFullMethodName": api
+                        }
+                    }
+                }]
+                endpoint = f"{base_url}/{service}"
+                previous_path_key = path_key
+
             else:
                 continue
 
